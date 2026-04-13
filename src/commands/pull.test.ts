@@ -13,6 +13,22 @@ function makeTempDir(): string {
   return dir;
 }
 
+/**
+ * Creates a committed vault file in the given git repo directory.
+ * Writes the encrypted vault to disk and stages + commits it.
+ */
+async function commitVault(dir: string, envPath: string, envContent: string, passphrase: string): Promise<void> {
+  const vaultContent = await encryptEnvFile(envContent, passphrase);
+  const vaultPath = getVaultPath(envPath);
+  fs.writeFileSync(vaultPath, vaultContent);
+
+  const vaultDir = path.join(dir, '.envault');
+  fs.mkdirSync(vaultDir, { recursive: true });
+  fs.writeFileSync(path.join(vaultDir, '.gitkeep'), '');
+  execSync('git add .', { cwd: dir, stdio: 'ignore' });
+  execSync('git commit -m "init"', { cwd: dir, stdio: 'ignore' });
+}
+
 describe('pullVaults', () => {
   it('decrypts tracked vault files into .env files', async () => {
     const dir = makeTempDir();
@@ -22,15 +38,7 @@ describe('pullVaults', () => {
     const envPath = path.join(dir, '.env');
     fs.writeFileSync(envPath, envContent);
 
-    const vaultContent = await encryptEnvFile(envContent, passphrase);
-    const vaultPath = getVaultPath(envPath);
-    fs.writeFileSync(vaultPath, vaultContent);
-
-    const vaultDir = path.join(dir, '.envault');
-    fs.mkdirSync(vaultDir, { recursive: true });
-    fs.writeFileSync(path.join(vaultDir, '.gitkeep'), '');
-    execSync('git add .', { cwd: dir, stdio: 'ignore' });
-    execSync('git commit -m "init"', { cwd: dir, stdio: 'ignore' });
+    await commitVault(dir, envPath, envContent, passphrase);
 
     fs.unlinkSync(envPath);
     expect(fs.existsSync(envPath)).toBe(false);
