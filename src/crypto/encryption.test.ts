@@ -15,6 +15,21 @@ describe('deriveKey', () => {
     const key2 = deriveKey('passphrase', salt);
     expect(key1.equals(key2)).toBe(true);
   });
+
+  it('should produce different keys for different salts', () => {
+    const salt1 = randomBytes(16);
+    const salt2 = randomBytes(16);
+    const key1 = deriveKey('passphrase', salt1);
+    const key2 = deriveKey('passphrase', salt2);
+    expect(key1.equals(key2)).toBe(false);
+  });
+
+  it('should produce different keys for different passphrases', () => {
+    const salt = randomBytes(16);
+    const key1 = deriveKey('passphrase-a', salt);
+    const key2 = deriveKey('passphrase-b', salt);
+    expect(key1.equals(key2)).toBe(false);
+  });
 });
 
 describe('encrypt / decrypt', () => {
@@ -49,5 +64,10 @@ describe('encrypt / decrypt', () => {
     const content = 'KEY1=value1\nKEY2=value2\nKEY3="hello world"';
     const passphrase = 'envault-key';
     expect(decrypt(encrypt(content, passphrase), passphrase)).toBe(content);
+  });
+
+  it('should handle an empty string', () => {
+    const passphrase = 'envault-key';
+    expect(decrypt(encrypt('', passphrase), passphrase)).toBe('');
   });
 });
