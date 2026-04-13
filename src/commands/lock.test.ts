@@ -63,4 +63,15 @@ describe('lockEnvFile', () => {
       lockEnvFile({ envFile: envPath, passphrase: PASSPHRASE })
     ).rejects.toThrow('Vault file already exists');
   });
+
+  it('produces a vault file that can be unlocked to recover original content', async () => {
+    const originalContent = 'KEY=value\nSECRET=abc123\nANOTHER=xyz\n';
+    const envPath = path.join(tmpDir, '.env');
+    fs.writeFileSync(envPath, originalContent);
+
+    const { vaultPath } = await lockEnvFile({ envFile: envPath, passphrase: PASSPHRASE });
+    const unlocked = await unlockVaultFile({ vaultFile: vaultPath, passphrase: PASSPHRASE });
+
+    expect(unlocked.content).toBe(originalContent);
+  });
 });
