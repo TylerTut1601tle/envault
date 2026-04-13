@@ -1,66 +1,69 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { parseEnvFile, serializeEnvFile } from '../env/parser';
-import { getVaultPath } from '../crypto/vault';
+import fs from 'fs';
+import path from 'path';
+import { getVaultPath, decryptVaultFile } from '../crypto/vault';
 
-export interface TemplateResult {
-  templatePath: string;
-  keyCount: number;
-  skipped: boolean;
+export interface TemplateOptions {
+  vault: string;
+  templateFile: string;
+  output?: string;
+  password: string;
+  envFile?: string;
 }
 
-/**
- * Generates a .env.template file from an existing vault or .env file,
- * stripping all values and leaving only keys (with optional comments preserved).
- */
-export async function generateTemplate(
-  dir: string,
-  envName: string = '.env',
-  outputPath?: string
-): Promise<TemplateResult> {
-  const vaultPath = getVaultPath(dir, envName);
-  const envPath = path.join(dir, envName);
-  const templatePath = outputPath ?? path.join(dir, `${envName}.template`);
+export interface TemplateResult {
+  success: boolean;
+  message: string;
+  rendered?: string;
+}
 
-  // Prefer the plain .env file if it exists, otherwise require vault
-  let sourcePath: string;
-  if (fs.existsSync(envPath)) {
-    sourcePath = envPath;
-  } else if (fs.existsSync(vaultPath)) {
-    throw new Error(
-      `Source .env file not found at ${envPath}. Unlock the vault first with: envault unlock`
-    );
-  } else {
-    throw new Error(`No .env file found at ${envPath}`);
-  }
-
-  if (fs.existsSync(templatePath)) {
-    return { templatePath, keyCount: 0, skipped: true };
-  }
-
-  const raw = fs.readFileSync(sourcePath, 'utf-8');
-  const entries = parseEnvFile(raw);
-
-  // Strip values — keep keys and comments, blank out values
-  const stripped = entries.map((entry) => ({
-    ...entry,
-    value: entry.key ? '' : entry.value,
-  }));
-
-  const templateContent = serializeEnvFile(stripped);
-  fs.writeFileSync(templatePath, templateContent, 'utf-8');
-
-  const keyCount = stripped.filter((e) => e.key).length;
-  return { templatePath, keyCount, skipped: false };
+export function renderTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)/g, (match, braced, bare) => {
+    const key = braced ?? bare;
+    return Object.prototype.hasOwnProperty.call(vars, key) ? vars[key] : match;
+  });
 }
 
 export function formatTemplateResult(result: TemplateResult): string {
-  if (result.skipped) {
-    return `⚠️  Template already exists at ${result.templatePath} — skipped.`;
+  return result.message;
+}
+
+export async function runTemplate(opts: TemplateOptions): Promise<TemplateResult> {
+  const vaultPath = getVaultPath(opts.vault, opts.envFile ?? '.env');
+
+  if (!fs.existsSync(vaultPath)) {
+    return { success: false, message: `Vault not found: ${vaultPath}` };
   }
-  return [
-    `✅ Template generated: ${result.templatePath}`,
-    `   ${result.keyCount} key(s) exported with blank values.`,
-    `   Commit this file to share the expected env shape with your team.`,
-  ].join('\n');
+
+  if (!fs.existsSync(opts.templateFile)) {
+    return { success: false, message: `Template file not found: ${opts.templateFile}` };
+  }
+
+  let vars: Record<string, string>;
+  try {
+    vars = await decryptVaultFile(vaultPath, opts.password);
+  } catch {
+    return { success: false, message: 'Failed to decrypt vault. Check your password.' };
+  }
+
+  const template = fs.readFileSync(opts.templateFile, 'utf-8');
+  const rendered = renderTemplate(template, vars);
+
+  if (opts.output) {
+    const outDir = path.dirname(opts.output);
+    if (!fs.existsSync(outDir)) {
+      fs.mkdirSync(outDir, { recursive: true });
+    }
+    fs.writeFileSync(opts.output, rendered, 'utf-8');
+    return {
+      success: true,
+      message: `Template rendered to ${opts.output}`,
+      rendered,
+    };
+  }
+
+  return {
+    success: true,
+    message: rendered,
+    rendered,
+  };
 }
