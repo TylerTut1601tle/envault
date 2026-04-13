@@ -21,6 +21,20 @@ export function formatPushResult(result: PushResult): string {
   return `✓ Vault registered for tracking: ${result.vaultPath}\n  Source: ${result.envFile}\n  Commit the vault file to share with your team.`;
 }
 
+/**
+ * Registers a vault file for tracking in the repository.
+ *
+ * Validates that:
+ * - The current directory is inside a Git repository.
+ * - The specified env file exists on disk.
+ * - A corresponding vault file (created by `envault lock`) already exists.
+ *
+ * If the vault is not yet tracked, it is added to the tracked vaults list.
+ *
+ * @param envFile - Path to the env file (e.g. `.env`) relative to `cwd`.
+ * @param options.cwd - Working directory to resolve paths from. Defaults to `process.cwd()`.
+ * @returns A `PushResult` describing the outcome.
+ */
 export async function pushCommand(
   envFile: string,
   options: { cwd?: string } = {}
