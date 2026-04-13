@@ -27,6 +27,14 @@ async function promptPassphrase(): Promise<string> {
   });
 }
 
+/**
+ * Encrypts an env file into the vault, adds it to .gitignore, and ensures
+ * the vault directory is tracked by git.
+ *
+ * @param options - Configuration options including env file path, passphrase, and working directory.
+ * @returns Details about the operation, including the vault file path and whether it already existed.
+ * @throws If the env file does not exist or the passphrase is empty.
+ */
 export async function addEnvFile(options: AddOptions = {}): Promise<AddResult> {
   const cwd = options.cwd ?? process.cwd();
   const envFile = options.envFile ?? '.env';
