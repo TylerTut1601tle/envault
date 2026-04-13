@@ -56,6 +56,22 @@ describe('getStatus', () => {
     expect(status.vaultExists).toBe(true);
     expect(status.inSync).toBe(true);
   });
+
+  it('reports out-of-sync when env is newer than vault', async () => {
+    const dir = makeTempDir();
+    const envPath = path.join(dir, '.env');
+    fs.writeFileSync(envPath, 'KEY=value\n');
+    await encryptEnvFile(envPath, passphrase);
+
+    // Simulate env file being modified after vault was created
+    const futureTime = new Date(Date.now() + 10000);
+    fs.utimesSync(envPath, futureTime, futureTime);
+
+    const status = await getStatus(envPath);
+    expect(status.envExists).toBe(true);
+    expect(status.vaultExists).toBe(true);
+    expect(status.inSync).toBe(false);
+  });
 });
 
 describe('formatStatus', () => {
