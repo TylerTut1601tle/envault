@@ -1,38 +1,40 @@
-import type { Argv } from 'yargs';
-import { runChangelog, formatChangelogResult, readChangelog } from './changelog';
-import { getRepoRoot } from '../git/secrets';
+import { Command } from 'commander';
+import { readChangelog, appendChangelogEntry, formatChangelogResult } from './changelog';
+import { resolvePassword } from '../cli';
 
-export function registerChangelogCommand(yargs: Argv): Argv {
-  return yargs.command(
-    'changelog [vault]',
-    'Show history of actions performed on vaults',
-    (y) =>
-      y
-        .positional('vault', {
-          type: 'string',
-          description: 'Filter changelog by vault name',
-        })
-        .option('json', {
-          type: 'boolean',
-          default: false,
-          description: 'Output raw JSON',
-        }),
-    async (argv) => {
+export function registerChangelogCommand(program: Command): void {
+  const changelog = program
+    .command('changelog')
+    .description('View or append to the changelog for a vault');
+
+  changelog
+    .command('view <vault>')
+    .description('View the changelog for a vault')
+    .option('-n, --limit <number>', 'Limit the number of entries shown', '20')
+    .action(async (vault: string, opts: { limit: string }) => {
       try {
-        const cwd = process.cwd();
-        const repoRoot = await getRepoRoot(cwd);
-        const entries = readChangelog(repoRoot);
-        if (argv.json) {
-          const filtered = argv.vault ? entries.filter(e => e.vault === argv.vault) : entries;
-          console.log(JSON.stringify(filtered, null, 2));
-        } else {
-          const output = formatChangelogResult(entries, argv.vault as string | undefined);
-          console.log(output);
-        }
+        const entries = await readChangelog(vault);
+        const limit = parseInt(opts.limit, 10);
+        const result = formatChangelogResult(entries.slice(-limit));
+        console.log(result);
       } catch (err: any) {
-        console.error('changelog error:', err.message);
+        console.error(`Error: ${err.message}`);
         process.exit(1);
       }
-    }
-  );
+    });
+
+  changelog
+    .command('add <vault> <message>')
+    .description('Append an entry to the changelog for a vault')
+    .option('-p, --password <password>', 'Vault password')
+    .action(async (vault: string, message: string, opts: { password?: string }) => {
+      try {
+        const password = await resolvePassword(opts.password);
+        const entry = await appendChangelogEntry(vault, message, password);
+        console.log(`Changelog entry added: ${entry.timestamp} — ${entry.message}`);
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
 }

@@ -1,7 +1,7 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import {
   getChangelogPath,
   readChangelog,
@@ -10,7 +10,7 @@ import {
   formatChangelogResult,
 } from './changelog';
 
-function makeTempDir(): string {
+export function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'envault-changelog-test-'));
 }
 
@@ -25,62 +25,61 @@ describe('changelog', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns empty array when no changelog file exists', () => {
-    const entries = readChangelog(tmpDir);
+  it('getChangelogPath returns correct path', () => {
+    const vaultPath = path.join(tmpDir, 'staging.env.vault');
+    const result = getChangelogPath(vaultPath);
+    expect(result).toBe(path.join(tmpDir, 'staging.env.changelog.json'));
+  });
+
+  it('readChangelog returns empty array when file does not exist', async () => {
+    const vaultPath = path.join(tmpDir, 'test.env.vault');
+    const entries = await readChangelog(vaultPath);
     expect(entries).toEqual([]);
   });
 
-  it('writes and reads changelog entries', () => {
+  it('writeChangelog and readChangelog round-trip', async () => {
+    const vaultPath = path.join(tmpDir, 'test.env.vault');
     const entries = [
-      { timestamp: '2024-01-01T00:00:00.000Z', action: 'lock', vault: '.env', user: 'alice' },
+      { timestamp: '2024-01-01T00:00:00.000Z', message: 'Initial commit', author: 'Alice' },
     ];
-    writeChangelog(tmpDir, entries);
-    const read = readChangelog(tmpDir);
-    expect(read).toHaveLength(1);
-    expect(read[0].action).toBe('lock');
-    expect(read[0].vault).toBe('.env');
+    await writeChangelog(vaultPath, entries);
+    const result = await readChangelog(vaultPath);
+    expect(result).toEqual(entries);
   });
 
-  it('appends entries with a timestamp', () => {
-    appendChangelogEntry(tmpDir, { action: 'unlock', vault: '.env.staging' });
-    appendChangelogEntry(tmpDir, { action: 'rotate', vault: '.env.staging', user: 'bob' });
-    const entries = readChangelog(tmpDir);
+  it('appendChangelogEntry adds a new entry', async () => {
+    const vaultPath = path.join(tmpDir, 'test.env.vault');
+    const entry = await appendChangelogEntry(vaultPath, 'Added DB_URL', 'secret');
+    expect(entry.message).toBe('Added DB_URL');
+    expect(entry.timestamp).toBeDefined();
+    const entries = await readChangelog(vaultPath);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].message).toBe('Added DB_URL');
+  });
+
+  it('appendChangelogEntry accumulates multiple entries', async () => {
+    const vaultPath = path.join(tmpDir, 'test.env.vault');
+    await appendChangelogEntry(vaultPath, 'First change', 'pass');
+    await appendChangelogEntry(vaultPath, 'Second change', 'pass');
+    const entries = await readChangelog(vaultPath);
     expect(entries).toHaveLength(2);
-    expect(entries[0].action).toBe('unlock');
-    expect(entries[1].action).toBe('rotate');
-    expect(entries[1].user).toBe('bob');
-    expect(typeof entries[0].timestamp).toBe('string');
+    expect(entries[1].message).toBe('Second change');
   });
 
-  it('formats changelog entries as readable strings', () => {
+  it('formatChangelogResult formats entries as readable string', () => {
     const entries = [
-      { timestamp: '2024-01-01T00:00:00.000Z', action: 'lock', vault: '.env', user: 'alice', details: 'AES-256' },
-      { timestamp: '2024-01-02T00:00:00.000Z', action: 'rotate', vault: '.env' },
+      { timestamp: '2024-06-01T12:00:00.000Z', message: 'Rotated keys', author: 'Bob' },
+      { timestamp: '2024-06-02T08:30:00.000Z', message: 'Added API_KEY', author: 'Alice' },
     ];
     const output = formatChangelogResult(entries);
-    expect(output).toContain('lock');
-    expect(output).toContain('rotate');
-    expect(output).toContain('alice');
-    expect(output).toContain('AES-256');
+    expect(output).toContain('Rotated keys');
+    expect(output).toContain('Added API_KEY');
+    expect(output).toContain('Bob');
+    expect(output).toContain('Alice');
   });
 
-  it('filters changelog by vault name', () => {
-    const entries = [
-      { timestamp: '2024-01-01T00:00:00.000Z', action: 'lock', vault: '.env' },
-      { timestamp: '2024-01-02T00:00:00.000Z', action: 'lock', vault: '.env.staging' },
-    ];
-    const output = formatChangelogResult(entries, '.env');
-    expect(output).toContain('.env');
-    expect(output).not.toContain('.env.staging');
-  });
-
-  it('returns a message when no entries match', () => {
-    const output = formatChangelogResult([], '.env');
-    expect(output).toMatch(/no changelog/i);
-  });
-
-  it('getChangelogPath returns correct path', () => {
-    const p = getChangelogPath(tmpDir);
-    expect(p).toBe(path.join(tmpDir, '.envault', 'changelog.json'));
+  it('formatChangelogResult returns message for empty changelog', () => {
+    const output = formatChangelogResult([]);
+    expect(output).toContain('No changelog entries');
   });
 });
