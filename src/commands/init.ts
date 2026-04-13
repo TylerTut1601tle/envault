@@ -73,3 +73,15 @@ export function formatInitResult(result: InitResult): string {
   lines.push(`  Repo: ${result.repoRoot}`);
   return lines.join('\n');
 }
+
+/**
+ * Returns true if the given directory has already been initialized as an
+ * envault repository (i.e. the .envault directory exists).
+ */
+export function isInitialized(cwd: string = process.cwd()): boolean {
+  if (!isGitRepo(cwd)) {
+    return false;
+  }
+  const repoRoot = getRepoRoot(cwd);
+  return fs.existsSync(path.join(repoRoot, '.envault'));
+}
