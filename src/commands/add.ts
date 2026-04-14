@@ -44,6 +44,10 @@ export async function addEnvFile(options: AddOptions = {}): Promise<AddResult> {
     throw new Error(`Env file not found: ${envFilePath}`);
   }
 
+  if (!fs.statSync(envFilePath).isFile()) {
+    throw new Error(`Path is not a file: ${envFilePath}`);
+  }
+
   const passphrase = options.passphrase ?? (await promptPassphrase());
   if (!passphrase || passphrase.trim().length === 0) {
     throw new Error('Passphrase must not be empty');
