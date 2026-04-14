@@ -10,6 +10,17 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'envault-tag-reg-test-'));
 }
 
+/**
+ * Creates a fresh Command instance with exitOverride and the tag subcommand registered.
+ * Extracted to avoid duplication across tests that need a clean program instance.
+ */
+function makeProgram(): Command {
+  const program = new Command();
+  program.exitOverride();
+  registerTagCommand(program);
+  return program;
+}
+
 describe('registerTagCommand', () => {
   let dir: string;
   let program: Command;
@@ -17,9 +28,7 @@ describe('registerTagCommand', () => {
 
   beforeEach(() => {
     dir = makeTempDir();
-    program = new Command();
-    program.exitOverride();
-    registerTagCommand(program);
+    program = makeProgram();
     consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
