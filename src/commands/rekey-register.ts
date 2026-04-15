@@ -23,6 +23,10 @@ export function registerRekeyCommand(program: Command): void {
         console.error("Both current and new passwords are required.");
         process.exit(1);
       }
+      if (oldPassword === newPassword) {
+        console.error("New password must be different from the current password.");
+        process.exit(1);
+      }
       try {
         const result = await rekeyVaults(dir, oldPassword, newPassword, vaults);
         console.log(formatRekeyResult(result));
