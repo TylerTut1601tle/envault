@@ -37,7 +37,8 @@ export function registerMergeCommand(yargs: Argv): Argv {
           argv.target as string,
           password,
           argv.overwrite as boolean
-        formatMergeResult(result));
+        );
+        console.log(formatMergeResult(result));
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`Error: ${message}`);
