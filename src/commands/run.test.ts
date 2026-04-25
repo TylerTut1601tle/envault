@@ -9,6 +9,20 @@ function makeTempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "envault-run-test-"));
 }
 
+/**
+ * Helper to create an encrypted vault file with the given env content.
+ */
+async function makeVault(
+  dir: string,
+  filename: string,
+  envContent: string,
+  password: string
+): Promise<string> {
+  const vaultFile = path.join(dir, filename);
+  await encryptEnvFile(envContent, vaultFile, password);
+  return vaultFile;
+}
+
 describe("runWithEnv", () => {
   let tmpDir: string;
   const password = "test-password-123";
@@ -32,9 +46,7 @@ describe("runWithEnv", () => {
   });
 
   it("returns error if password is wrong", async () => {
-    const envContent = "KEY=value\n";
-    const vaultFile = path.join(tmpDir, "test.vault");
-    await encryptEnvFile(envContent, vaultFile, password);
+    const vaultFile = await makeVault(tmpDir, "test.vault", "KEY=value\n", password);
 
     const result = await runWithEnv(vaultFile, "wrong-password", ["echo", "hi"]);
     expect(result.exitCode).toBe(1);
@@ -42,9 +54,12 @@ describe("runWithEnv", () => {
   });
 
   it("runs command with injected env variables", async () => {
-    const envContent = "ENVAULT_TEST_VAR=hello_world\n";
-    const vaultFile = path.join(tmpDir, "test.vault");
-    await encryptEnvFile(envContent, vaultFile, password);
+    const vaultFile = await makeVault(
+      tmpDir,
+      "test.vault",
+      "ENVAULT_TEST_VAR=hello_world\n",
+      password
+    );
 
     const result = await runWithEnv(
       vaultFile,
@@ -56,9 +71,7 @@ describe("runWithEnv", () => {
   });
 
   it("returns non-zero exit code when command fails", async () => {
-    const envContent = "KEY=val\n";
-    const vaultFile = path.join(tmpDir, "fail.vault");
-    await encryptEnvFile(envContent, vaultFile, password);
+    const vaultFile = await makeVault(tmpDir, "fail.vault", "KEY=val\n", password);
 
     const result = await runWithEnv(vaultFile, password, ["node", "-e", "process.exit(42)"]);
     expect(result.exitCode).toBe(42);
